@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101713">
+  <title>JACHTSEIZOEN — Limburg</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="noise"></div>
+  <header class="topbar"><a class="brand" href="#"><span class="brand-mark">J</span><span>JACHT<span class="accent">SEIZOEN</span><small>PEEL EN MAAS • FIELD OPS</small></span></a><div class="live-pill"><i></i> LIVE COMMAND</div></header>
+  <main>
+    <section id="locationGate" class="gate panel">
+      <div class="eyebrow">TOEGANGSCONTROLE / 01</div><div class="big-icon">⌖</div>
+      <h1>Locatie vereist<span class="accent">.</span></h1>
+      <p>Jachtseizoen gebruikt je locatie om je team tijdens het spel op de kaart te tonen. Geef toestemming om door te gaan.</p>
+      <button id="enableLocation" class="btn primary">LOCATIE TOESTAAN <span>↗</span></button>
+      <div class="gate-error" id="locationError" hidden>Je hebt geen locatietoegang gegeven. Zonder locatie kun je deze site helaas niet gebruiken. Sta locatie toe in je browserinstellingen en probeer opnieuw.</div>
+      <div class="tiny">GPS • TEAM TRACKING • LIVE MAP</div>
+    </section>
+
+    <section id="home" hidden>
+      <div class="hero"><div><div class="eyebrow">PEEL EN MAAS / OPERATIE DASHBOARD</div><h1>Het spel begint<br>op <span class="accent">straat.</span></h1><p>Maak een jacht aan of sluit aan bij een team. Blijf scherp. Blijf in beweging.</p></div><div class="hero-stamp"><span>JS</span><small>FIELD<br>UNIT</small></div></div>
+      <div class="home-grid">
+        <article class="panel action-panel"><div class="panel-head"><span>01 / NIEUWE OPERATIE</span><span class="tag">HOST</span></div><h2>Maak een potje</h2><p>Jij wordt de eigenaar. Stel teams en regels in voordat het spel start.</p><label>Naam van het potje</label><input id="gameName" maxlength="32" placeholder="Bijv. Jacht in Panningen"><button id="createGame" class="btn primary full">POTJE AANMAKEN <span>→</span></button></article>
+        <article class="panel action-panel"><div class="panel-head"><span>02 / AANSLUITEN</span><span class="tag muted">PLAYER</span></div><h2>Join een potje</h2><p>Vul de code in die de eigenaar met je heeft gedeeld.</p><label>Operatiecode</label><input id="joinCode" maxlength="8" placeholder="AB12CD" class="code-input"><label>Jouw naam</label><input id="joinName" maxlength="24" placeholder="Naam of callsign"><button id="joinGame" class="btn secondary full">JOIN OPERATIE <span>→</span></button></article>
+      </div>
+      <div class="safety-note"><span>⚠</span><p><b>Speel slim.</b> Blijf op openbare, veilige plekken. Betreed geen privéterrein en stop het spel als iemand zich onveilig voelt. Locaties worden gedeeld met deelnemers van hetzelfde potje.</p></div>
+    </section>
+
+    <section id="lobby" hidden>
+      <div class="lobby-top"><div><div class="eyebrow">OPERATIE / LOBBY</div><h1 id="lobbyTitle">Jachtseizoen</h1><p>Deel de code met alle deelnemers.</p></div><div class="code-card"><small>JOIN CODE</small><strong id="displayCode">------</strong><button id="copyCode" class="copy">KOPIEER</button></div></div>
+      <nav id="tabs" class="tabs"><button data-tab="location" class="active">⌖ Locatie</button><button data-tab="chat">▤ Chat</button><button data-tab="settings">⚙ Spel instellingen</button><button data-tab="teams">♟ Team beheer</button></nav>
+      <div id="tab-location" class="tab-content">
+        <div class="status-row"><div><span class="status-dot"></span><b id="gameStatus">LOBBY</b><span class="muted-text"> / KAARTCENTRUM PEEL EN MAAS</span></div><span id="refreshLabel">Locatie wacht op start</span></div>
+        <div id="map"></div><div class="map-legend"><span><i class="legend-police"></i> Politie</span><span><i class="legend-robber"></i> Boeven</span><span><i class="legend-offline"></i> Offline</span></div>
+        <div class="map-foot">Kaartdata © OpenStreetMap-bijdragers • GPS kan afwijken.</div>
+      </div>
+      <div id="tab-chat" class="tab-content" hidden><div class="panel chat-panel"><div class="panel-head"><span>RADIO / TEAM CHAT</span><span class="tag">LIVE</span></div><div id="chatMessages" class="chat-messages"></div><form id="chatForm" class="chat-form"><input id="chatText" maxlength="300" placeholder="Stuur een bericht..." autocomplete="off"><button class="btn primary" type="submit">STUUR ↗</button></form></div></div>
+      <div id="tab-settings" class="tab-content" hidden><div class="panel"><div class="panel-head"><span>OPERATIEPARAMETERS</span><span id="ownerBadge" class="tag">ALLEEN HOST</span></div><div id="settingsFields" class="settings-grid">
+        <div><label>Speelduur (minuten)</label><input id="duration" type="number" min="1" max="240" value="60"></div>
+        <div><label>Locatie-update elke (seconden)</label><input id="updateInterval" type="number" min="5" max="600" value="30"></div>
+        <div><label>Offline-knoppen per team</label><input id="offlineUses" type="number" min="0" max="20" value="2"></div>
+        <div><label>Offline-duur (seconden)</label><input id="offlineDuration" type="number" min="5" max="600" value="60"></div>
+      </div><div class="setting-actions"><button id="saveSettings" class="btn secondary">INSTELLINGEN OPSLAAN</button><button id="startGame" class="btn primary">▶ POTJE BEGINNEN</button></div><p class="hint">Wijs in Team beheer spelers toe aan Politie of Boeven. Starten kan alleen door de eigenaar.</p></div></div>
+      <div id="tab-teams" class="tab-content" hidden><div class="team-columns"><div class="panel"><div class="panel-head"><span>TEAMS & SPELERS</span><span class="tag">ROSTER</span></div><div id="teamList"></div><div class="add-team"><input id="newTeamName" placeholder="Nieuwe teamnaam"><select id="newTeamRole"><option value="police">Politie</option><option value="robber">Boeven</option></select><button id="addTeam" class="btn secondary">+ TEAM</button></div></div><div class="panel"><div class="panel-head"><span>DEELNEMERS</span><span class="tag muted">TOEWIJZEN</span></div><div id="memberList"></div><p class="hint">Spelers kunnen hun callsign aanpassen. De host beheert teamindeling en rollen.</p></div></div></div>
+      <div id="gameControls" class="game-controls" hidden><div><small>RESTERENDE SPEELTIJD</small><strong id="countdown">--:--</strong></div><div class="control-buttons"><button id="offlineButton" class="btn secondary">◌ OFFLINE AANVRAGEN</button><button id="taggedButton" class="btn danger">✓ BOEVEN GETIKT</button><button id="robbersWinButton" class="btn secondary">BOEVEN WINNEN</button></div></div>
+      <div id="gameOver" class="panel game-over" hidden><div class="eyebrow">OPERATIE AFGEROND</div><h2>GAME OVER<span class="accent">.</span></h2><p id="winnerText"></p></div>
+      <button id="leaveGame" class="leave">← Terug naar start</button>
+    </section>
+  </main>
+  <footer>JACHTSEIZOEN <span>•</span> NIET OFFICIEEL VERBONDEN AAN EEN TV-PRODUCTIE</footer>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="app.js"></script>
+</body></html>
