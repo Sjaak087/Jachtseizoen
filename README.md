@@ -10,6 +10,9 @@ Een donkere, tactical-styled webapp voor een eigen Jachtseizoen-potje. Geschikt 
 - Instelbare speeltijd, GPS-update-interval, aantal offline-momenten en offline-duur.
 - Kaart met OpenStreetMap-tegels, markers en status.
 - Timer, game over en winnaar instellen.
+- Bovenaan tijdens een live potje een aftellende timer tot de volgende GPS-update.
+- Waarschuwing op de kaart alleen wanneer een tegenstander geen recente locatie doorstuurt.
+- Home-overzicht van gemaakte/gejoinde potjes; de geschiedenis wordt lokaal in de browser opgeslagen en kan worden gebruikt om potjes opnieuw te openen.
 
 ## Firebase instellen
 De app gebruikt de Firebase-configuratie die bij het project is aangeleverd en schrijft naar Realtime Database. Zet in Firebase Console de Realtime Database aan en stel passende beveiligingsregels in.
@@ -36,6 +39,10 @@ De kaart centreert op de regio Peel en Maas. OpenStreetMap-kaarttegels tonen weg
 
 
 ## Locatie bij vergrendeld scherm / standby
-De website probeert een GPS-update te sturen zodra de browser een locatie ontvangt. Wanneer de pagina weer actief wordt, de telefoon weer online komt of de browser focus krijgt, vraagt de app meteen een nieuwe locatie op en probeert deze naar Firebase te sturen. Als een locatie-update te lang uitblijft, toont de kaart een waarschuwing dat het apparaat mogelijk uitstaat, in standby staat of geen verbinding heeft.
+De website probeert een GPS-update te sturen zodra de browser een locatie ontvangt. Wanneer de pagina weer actief wordt, de telefoon weer online komt of de browser focus krijgt, vraagt de app meteen een nieuwe locatie op en probeert deze naar Firebase te sturen. Als de locatie van een tegenstander te lang uitblijft, toont de kaart een waarschuwing dat diens apparaat mogelijk uitstaat, in standby staat of geen verbinding heeft. De waarschuwing wordt niet getoond vanwege een probleem met de eigen locatie.
 
 **Belangrijk:** mobiele browsers kunnen GPS en JavaScript pauzeren zodra het scherm wordt vergrendeld. Een website kan dit niet betrouwbaar voorkomen of garanderen dat updates doorgaan. De waarschuwing is gebaseerd op de tijd van de laatst ontvangen locatie en kan daarom niet met zekerheid vaststellen dat het apparaat uitstaat. Voor gegarandeerdere achtergrondtracking is een native mobiele app nodig.
+
+
+## Potjesgeschiedenis
+De Home-pagina bewaart maximaal 30 potjes die je zelf hebt aangemaakt of gejoint, in de lokale browseropslag. Het overzicht haalt bij het verversen de actuele status uit Firebase op. De geschiedenis is apparaat-/browsergebonden; wissen van browsergegevens kan deze lokale lijst verwijderen.

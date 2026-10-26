@@ -26,11 +26,17 @@
         <article class="panel action-panel"><div class="panel-head"><span>01 / NIEUWE OPERATIE</span><span class="tag">HOST</span></div><h2>Maak een potje</h2><p>Jij wordt de eigenaar. Stel teams en regels in voordat het spel start.</p><label>Naam van het potje</label><input id="gameName" maxlength="32" placeholder="Bijv. Jacht in Panningen"><button id="createGame" class="btn primary full">POTJE AANMAKEN <span>→</span></button></article>
         <article class="panel action-panel"><div class="panel-head"><span>02 / AANSLUITEN</span><span class="tag muted">PLAYER</span></div><h2>Join een potje</h2><p>Vul de code in die de eigenaar met je heeft gedeeld.</p><label>Operatiecode</label><input id="joinCode" maxlength="8" placeholder="AB12CD" class="code-input"><label>Jouw naam</label><input id="joinName" maxlength="24" placeholder="Naam of callsign"><button id="joinGame" class="btn secondary full">JOIN OPERATIE <span>→</span></button></article>
       </div>
+      <section class="panel saved-games-panel" aria-labelledby="savedGamesTitle">
+        <div class="panel-head"><span>03 / OPERATIEARCHIEF</span><span class="tag">GESCHIEDENIS</span></div>
+        <div class="saved-games-heading"><div><h2 id="savedGamesTitle">Jouw potjes</h2><p>Potjes die je hebt gemaakt of gejoint, bewaard op dit apparaat.</p></div><button id="refreshSavedGames" class="copy">VERVERSEN ↻</button></div>
+        <div id="savedGamesList" class="saved-games-list"><p class="saved-games-empty">Potjes laden…</p></div>
+      </section>
       <div class="safety-note"><span>⚠</span><p><b>Speel slim.</b> Blijf op openbare, veilige plekken. Betreed geen privéterrein en stop het spel als iemand zich onveilig voelt. Locaties worden gedeeld met deelnemers van hetzelfde potje.</p></div>
     </section>
 
     <section id="lobby" hidden>
       <div class="lobby-top"><div><div class="eyebrow">OPERATIE / LOBBY</div><h1 id="lobbyTitle">Jachtseizoen</h1><p>Deel de code met alle deelnemers.</p></div><div class="code-card"><small>JOIN CODE</small><strong id="displayCode">------</strong><button id="copyCode" class="copy">KOPIEER</button></div></div>
+      <div id="locationCountdownBar" class="location-countdown" hidden><div class="location-countdown-label"><small>VOLGENDE LOCATIE-UPDATE</small><strong><span id="locationSendCountdown">--</span><span class="location-seconds">SEC</span></strong></div><p id="locationCountdownHint">Automatische GPS-update.</p></div>
       <nav id="tabs" class="tabs"><button data-tab="location" class="active">⌖ Locatie</button><button data-tab="chat">▤ Chat</button><button data-tab="settings">⚙ Spel instellingen</button><button data-tab="teams">♟ Team beheer</button></nav>
       <div id="tab-location" class="tab-content">
         <div class="status-row"><div><span class="status-dot"></span><b id="gameStatus">LOBBY</b><span class="muted-text"> / KAARTCENTRUM PEEL EN MAAS</span></div><span id="refreshLabel">Locatie wacht op start</span></div>
