@@ -1,4 +1,4 @@
-# Jachtseizoen — Peel en Maas
+# Jachtseizoen — Nederland
 
 Een donkere, tactical-styled webapp voor een eigen Jachtseizoen-potje. Geschikt voor GitHub Pages en Firebase Realtime Database.
 
@@ -8,7 +8,10 @@ Een donkere, tactical-styled webapp voor een eigen Jachtseizoen-potje. Geschikt 
 - Tabs: locatiekaart, live chat, spelinstellingen en teambeheer.
 - Politie-/Boeven-teams, spelers toewijzen, teamnamen aanpassen.
 - Instelbare speeltijd, GPS-update-interval, aantal offline-momenten en offline-duur.
-- Kaart met OpenStreetMap-tegels, markers en status.
+- Kaart met OpenStreetMap-tegels van Nederland, markers en status; bij een actief potje zoomt de kaart naar de spelers.
+- Wandelroutes over het OpenStreetMap-wandelnetwerk naar tegenstanders, met routeafstand en geschatte wandel- en rentijd.
+- De snelste berekende wandelroute naar een tegenstander wordt met de kleur van jouw team op de kaart getoond.
+- Verplaatsingslijnen in de teamkleur van de tegenstander tonen een geschat pad over wandelwegen tussen opeenvolgende GPS-updates.
 - Timer, game over en winnaar instellen.
 - Bovenaan tijdens een live potje een aftellende timer tot de volgende GPS-update.
 - Waarschuwing op de kaart alleen wanneer een tegenstander geen recente locatie doorstuurt.
@@ -28,11 +31,13 @@ De API-key in een Firebase webconfig is normaal gesproken een client identifier,
 4. Kies **Deploy from a branch**, branch `main`, map `/ (root)`, en sla op.
 5. Open de Pages-URL via HTTPS. Locatie werkt niet op gewone HTTP, behalve localhost.
 
-## Kaartgebied
-De kaart centreert op de regio Peel en Maas. OpenStreetMap-kaarttegels tonen wegen en straten; het is geen officiële gemeentelijke GIS-kaart. De cirkel is alleen een visuele regio-indicatie.
+## Kaart en routering
+De kaart opent met een overzicht van Nederland en zoomt vervolgens naar de spelers wanneer de teamlocaties beschikbaar zijn. Wegen en wandelpaden komen van OpenStreetMap. Wandelroutes worden berekend via de openbare OSRM/FOSSGIS-routeringsservice (`routing.openstreetmap.de`) met het voetgangersprofiel. De app houdt minimaal ongeveer 1,1 seconde tussen routeaanvragen aan om het gebruik van de publieke service te beperken.
+
+Afstand is de berekende routeafstand over het wandelnetwerk, niet de hemelsbrede afstand. Wandel- en rentijden zijn schattingen op basis van respectievelijk 4,8 km/u en 10 km/u; werkelijke snelheid hangt af van de persoon en omstandigheden. De snelste beschikbare wandelroute krijgt de kleur van jouw team. Verplaatsingslijnen van tegenstanders proberen het pad tussen twee GPS-updates via wandelwegen te schatten. Omdat de app alleen de twee gedeelde GPS-punten kent, kan ze niet weten welke weg de speler in werkelijkheid precies heeft genomen. Als de routeringsservice niet beschikbaar is, wordt voor zo'n verplaatsingslijn een gestippelde GPS-verbindingslijn gebruikt en wordt de routeafstand als niet beschikbaar aangegeven.
 
 ## Belangrijke aandachtspunten
-- Gebruik de app alleen met expliciete toestemming van deelnemers. Locatie wordt gedeeld met deelnemers aan hetzelfde potje.
+- Gebruik de app alleen met expliciete toestemming van deelnemers. Locatie wordt gedeeld met deelnemers aan hetzelfde potje. Voor routeberekening worden de coördinaten van vertrek- en eindpunten ook naar de openbare OSRM/FOSSGIS-routeringsservice gestuurd; de beheerder vermeldt dat routeaanvragen in serverlogs worden opgeslagen.
 - De app gebruikt GPS in de browser; precisie en achtergrondupdates hangen af van toestel, browser en batterij-instellingen.
 - Voor privacy en veiligheid is er geen verborgen tracking bedoeld. De offline-status wordt zichtbaar als een deelnemer een offline-moment activeert.
 - Test eerst met een besloten groep voordat je het echt gebruikt.

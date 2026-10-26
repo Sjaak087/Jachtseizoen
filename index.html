@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#101713">
-  <title>JACHTSEIZOEN — Limburg</title>
+  <title>JACHTSEIZOEN — Nederland</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="noise"></div>
-  <header class="topbar"><a class="brand" href="#"><span class="brand-mark">J</span><span>JACHT<span class="accent">SEIZOEN</span><small>PEEL EN MAAS • FIELD OPS</small></span></a><div class="live-pill"><i></i> LIVE COMMAND</div></header>
+  <header class="topbar"><a class="brand" href="#"><span class="brand-mark">J</span><span>JACHT<span class="accent">SEIZOEN</span><small>NEDERLAND • FIELD OPS</small></span></a><div class="live-pill"><i></i> LIVE COMMAND</div></header>
   <main>
     <section id="locationGate" class="gate panel">
       <div class="eyebrow">TOEGANGSCONTROLE / 01</div><div class="big-icon">⌖</div>
@@ -39,9 +39,16 @@
       <div id="locationCountdownBar" class="location-countdown" hidden><div class="location-countdown-label"><small>VOLGENDE LOCATIE-UPDATE</small><strong><span id="locationSendCountdown">--</span><span class="location-seconds">SEC</span></strong></div><p id="locationCountdownHint">Automatische GPS-update.</p></div>
       <nav id="tabs" class="tabs"><button data-tab="location" class="active">⌖ Locatie</button><button data-tab="chat">▤ Chat</button><button data-tab="settings">⚙ Spel instellingen</button><button data-tab="teams">♟ Team beheer</button></nav>
       <div id="tab-location" class="tab-content">
-        <div class="status-row"><div><span class="status-dot"></span><b id="gameStatus">LOBBY</b><span class="muted-text"> / KAARTCENTRUM PEEL EN MAAS</span></div><span id="refreshLabel">Locatie wacht op start</span></div>
-        <div id="map"></div><div id="locationNotice" class="location-notice" role="status" aria-live="polite" hidden></div><div class="map-legend"><span><i class="legend-police"></i> Politie</span><span><i class="legend-robber"></i> Boeven</span><span><i class="legend-offline"></i> Offline</span></div>
-        <div class="map-foot">Kaartdata © OpenStreetMap-bijdragers • GPS kan afwijken.</div>
+        <div class="status-row"><div><span class="status-dot"></span><b id="gameStatus">LOBBY</b><span class="muted-text"> / NEDERLANDSE KAART</span></div><span id="refreshLabel">Locatie wacht op start</span></div>
+        <div id="map"></div><div id="locationNotice" class="location-notice" role="status" aria-live="polite" hidden></div>
+        <section id="routePanel" class="route-panel" aria-live="polite" hidden>
+          <div class="route-panel-head"><div><small>ROUTEBEREKENING</small><h2>Afstand tot het andere team</h2></div><span id="routeStatus" class="route-status">Wacht op live spel</span></div>
+          <div id="routeSummary"><p class="route-empty">Start het potje en deel locaties om routes te berekenen.</p></div>
+          <div id="routeTargets" class="route-targets"></div>
+          <p class="route-disclaimer">Routes lopen over het OpenStreetMap-wandelnetwerk. Tijden zijn schattingen (wandelen 4,8 km/u, rennen 10 km/u). De lijn naar een tegenstander toont de snelste berekende wandelroute. Verplaatsingslijnen tussen GPS-updates zijn schattingen; de werkelijke beweging tussen updates is niet bekend.</p>
+        </section>
+        <div class="map-legend"><span><i class="legend-police"></i> Politie</span><span><i class="legend-robber"></i> Boeven</span><span><i class="legend-offline"></i> Offline</span><span><i class="legend-route"></i> Snelste route (jouw teamkleur)</span><span><i class="legend-movement"></i> Geschat pad tegenstander</span></div>
+        <div class="map-foot">Kaartdata © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> • Routering: OSRM / FOSSGIS • GPS kan afwijken.</div>
       </div>
       <div id="tab-chat" class="tab-content" hidden><div class="panel chat-panel"><div class="panel-head"><span>RADIO / TEAM CHAT</span><span class="tag">LIVE</span></div><div id="chatMessages" class="chat-messages"></div><form id="chatForm" class="chat-form"><input id="chatText" maxlength="300" placeholder="Stuur een bericht..." autocomplete="off"><button class="btn primary" type="submit">STUUR ↗</button></form></div></div>
       <div id="tab-settings" class="tab-content" hidden><div class="panel"><div class="panel-head"><span>OPERATIEPARAMETERS</span><span id="ownerBadge" class="tag">ALLEEN HOST</span></div><div id="settingsFields" class="settings-grid">
