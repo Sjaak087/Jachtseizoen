@@ -34,7 +34,7 @@
       <nav id="tabs" class="tabs"><button data-tab="location" class="active">⌖ Locatie</button><button data-tab="chat">▤ Chat</button><button data-tab="settings">⚙ Spel instellingen</button><button data-tab="teams">♟ Team beheer</button></nav>
       <div id="tab-location" class="tab-content">
         <div class="status-row"><div><span class="status-dot"></span><b id="gameStatus">LOBBY</b><span class="muted-text"> / KAARTCENTRUM PEEL EN MAAS</span></div><span id="refreshLabel">Locatie wacht op start</span></div>
-        <div id="map"></div><div class="map-legend"><span><i class="legend-police"></i> Politie</span><span><i class="legend-robber"></i> Boeven</span><span><i class="legend-offline"></i> Offline</span></div>
+        <div id="map"></div><div id="locationNotice" class="location-notice" role="status" aria-live="polite" hidden></div><div class="map-legend"><span><i class="legend-police"></i> Politie</span><span><i class="legend-robber"></i> Boeven</span><span><i class="legend-offline"></i> Offline</span></div>
         <div class="map-foot">Kaartdata © OpenStreetMap-bijdragers • GPS kan afwijken.</div>
       </div>
       <div id="tab-chat" class="tab-content" hidden><div class="panel chat-panel"><div class="panel-head"><span>RADIO / TEAM CHAT</span><span class="tag">LIVE</span></div><div id="chatMessages" class="chat-messages"></div><form id="chatForm" class="chat-form"><input id="chatText" maxlength="300" placeholder="Stuur een bericht..." autocomplete="off"><button class="btn primary" type="submit">STUUR ↗</button></form></div></div>

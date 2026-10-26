@@ -33,3 +33,9 @@ De kaart centreert op de regio Peel en Maas. OpenStreetMap-kaarttegels tonen weg
 - De app gebruikt GPS in de browser; precisie en achtergrondupdates hangen af van toestel, browser en batterij-instellingen.
 - Voor privacy en veiligheid is er geen verborgen tracking bedoeld. De offline-status wordt zichtbaar als een deelnemer een offline-moment activeert.
 - Test eerst met een besloten groep voordat je het echt gebruikt.
+
+
+## Locatie bij vergrendeld scherm / standby
+De website probeert een GPS-update te sturen zodra de browser een locatie ontvangt. Wanneer de pagina weer actief wordt, de telefoon weer online komt of de browser focus krijgt, vraagt de app meteen een nieuwe locatie op en probeert deze naar Firebase te sturen. Als een locatie-update te lang uitblijft, toont de kaart een waarschuwing dat het apparaat mogelijk uitstaat, in standby staat of geen verbinding heeft.
+
+**Belangrijk:** mobiele browsers kunnen GPS en JavaScript pauzeren zodra het scherm wordt vergrendeld. Een website kan dit niet betrouwbaar voorkomen of garanderen dat updates doorgaan. De waarschuwing is gebaseerd op de tijd van de laatst ontvangen locatie en kan daarom niet met zekerheid vaststellen dat het apparaat uitstaat. Voor gegarandeerdere achtergrondtracking is een native mobiele app nodig.
