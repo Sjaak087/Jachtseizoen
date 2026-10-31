@@ -1,7 +1,8 @@
 <!doctype html>
 <html lang="nl">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#101713">
   <title>JACHTSEIZOEN — Nederland</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -9,61 +10,304 @@
 </head>
 <body>
   <div class="noise"></div>
-  <header class="topbar"><a class="brand" href="#"><span class="brand-mark">J</span><span>JACHT<span class="accent">SEIZOEN</span><small>NEDERLAND • FIELD OPS</small></span></a><div class="live-pill"><i></i> LIVE COMMAND</div></header>
+
+  <!-- PERSISTENT ACTIVE CALL BAR (VISIBLE ACROSS ALL TABS) -->
+  <div id="activeCallBar" class="active-call-bar" hidden>
+    <div class="call-info">
+      <span class="call-pulse"></span>
+      <div>
+        <strong id="activeCallTitle">IN GESPREK MET...</strong>
+        <small id="activeCallTimer">00:00</small>
+      </div>
+    </div>
+    <button id="hangupBtn" class="btn danger">OPHANGEN 📵</button>
+  </div>
+
+  <!-- INCOMING CALL OVERLAY -->
+  <div id="incomingCallOverlay" class="incoming-call-overlay" hidden>
+    <div class="incoming-call-card panel">
+      <div class="call-ring-anim">📞</div>
+      <small>INCOMENDE OPROEP</small>
+      <h2 id="callerName">Speler</h2>
+      <p id="callerTeam">Team Politie</p>
+      <div class="call-actions">
+        <button id="acceptCallBtn" class="btn primary">OPNEMEN 📞</button>
+        <button id="rejectCallBtn" class="btn danger">WEIGEREN ✖</button>
+      </div>
+    </div>
+  </div>
+
+  <audio id="remoteAudio" autoplay></audio>
+
+  <header class="topbar">
+    <a class="brand" href="#"><span class="brand-mark">J</span><span>JACHT<span class="accent">SEIZOEN</span><small>NEDERLAND • PEEL EN MAAS OPS</small></span></a>
+    <div class="live-pill"><i></i> LIVE COMMAND</div>
+  </header>
+
   <main>
     <section id="locationGate" class="gate panel">
-      <div class="eyebrow">TOEGANGSCONTROLE / 01</div><div class="big-icon">⌖</div>
+      <div class="eyebrow">TOEGANGSCONTROLE / 01</div>
+      <div class="big-icon">⌖</div>
       <h1>Locatie vereist<span class="accent">.</span></h1>
       <p>Jachtseizoen gebruikt je locatie om je team tijdens het spel op de kaart te tonen. Geef toestemming om door te gaan.</p>
       <button id="enableLocation" class="btn primary">LOCATIE TOESTAAN <span>↗</span></button>
-      <div class="gate-error" id="locationError" hidden>Je hebt geen locatietoegang gegeven. Zonder locatie kun je deze site helaas niet gebruiken. Sta locatie toe in je browserinstellingen en probeer opnieuw.</div>
+      <div class="gate-error" id="locationError" hidden>Je hebt geen locatietoegang gegeven. Sta locatie toe in je browserinstellingen en probeer opnieuw.</div>
       <div class="tiny">GPS • TEAM TRACKING • LIVE MAP</div>
     </section>
 
     <section id="home" hidden>
-      <div class="hero"><div><div class="eyebrow">PEEL EN MAAS / OPERATIE DASHBOARD</div><h1>Het spel begint<br>op <span class="accent">straat.</span></h1><p>Maak een jacht aan of sluit aan bij een team. Blijf scherp. Blijf in beweging.</p></div><div class="hero-stamp"><span>JS</span><small>FIELD<br>UNIT</small></div></div>
-      <div class="home-grid">
-        <article class="panel action-panel"><div class="panel-head"><span>01 / NIEUWE OPERATIE</span><span class="tag">HOST</span></div><h2>Maak een potje</h2><p>Jij wordt de eigenaar. Stel teams en regels in voordat het spel start.</p><label>Naam van het potje</label><input id="gameName" maxlength="32" placeholder="Bijv. Jacht in Panningen"><button id="createGame" class="btn primary full">POTJE AANMAKEN <span>→</span></button></article>
-        <article class="panel action-panel"><div class="panel-head"><span>02 / AANSLUITEN</span><span class="tag muted">PLAYER</span></div><h2>Join een potje</h2><p>Vul de code in die de eigenaar met je heeft gedeeld.</p><label>Operatiecode</label><input id="joinCode" maxlength="8" placeholder="AB12CD" class="code-input"><label>Jouw naam</label><input id="joinName" maxlength="24" placeholder="Naam of callsign"><button id="joinGame" class="btn secondary full">JOIN OPERATIE <span>→</span></button></article>
+      <div class="hero">
+        <div>
+          <div class="eyebrow">PEEL EN MAAS / OPERATIE DASHBOARD</div>
+          <h1>Het spel begint<br>op <span class="accent">straat.</span></h1>
+          <p>Maak een jacht aan of sluit aan bij een team. Blijf scherp. Blijf in beweging.</p>
+        </div>
+        <div class="hero-stamp"><span>JS</span><small>FIELD<br>UNIT</small></div>
       </div>
+
+      <div class="home-grid">
+        <article class="panel action-panel">
+          <div class="panel-head"><span>01 / NIEUWE OPERATIE</span><span class="tag">HOST</span></div>
+          <h2>Maak een potje</h2>
+          <p>Jij wordt de eigenaar. Stel teams en regels in voordat het spel start.</p>
+          <label>Naam van het potje</label>
+          <input id="gameName" maxlength="32" placeholder="Bijv. Jacht in Panningen">
+          <button id="createGame" class="btn primary full">POTJE AANMAKEN <span>→</span></button>
+        </article>
+        <article class="panel action-panel">
+          <div class="panel-head"><span>02 / AANSLUITEN</span><span class="tag muted">PLAYER</span></div>
+          <h2>Join een potje</h2>
+          <p>Vul de code in die de eigenaar met je heeft gedeeld.</p>
+          <label>Operatiecode</label>
+          <input id="joinCode" maxlength="8" placeholder="AB12CD" class="code-input">
+          <label>Jouw naam</label>
+          <input id="joinName" maxlength="24" placeholder="Naam of callsign">
+          <button id="joinGame" class="btn secondary full">JOIN OPERATIE <span>→</span></button>
+        </article>
+      </div>
+
       <section class="panel saved-games-panel" aria-labelledby="savedGamesTitle">
         <div class="panel-head"><span>03 / OPERATIEARCHIEF</span><span class="tag">GESCHIEDENIS</span></div>
-        <div class="saved-games-heading"><div><h2 id="savedGamesTitle">Jouw potjes</h2><p>Potjes die je hebt gemaakt of gejoint, bewaard op dit apparaat.</p></div><button id="refreshSavedGames" class="copy">VERVERSEN ↻</button></div>
+        <div class="saved-games-heading">
+          <div><h2 id="savedGamesTitle">Jouw potjes</h2><p>Potjes die je hebt gemaakt of gejoint, bewaard op dit apparaat.</p></div>
+          <button id="refreshSavedGames" class="copy">VERVERSEN ↻</button>
+        </div>
         <div id="savedGamesList" class="saved-games-list"><p class="saved-games-empty">Potjes laden…</p></div>
       </section>
-      <div class="safety-note"><span>⚠</span><p><b>Speel slim.</b> Blijf op openbare, veilige plekken. Betreed geen privéterrein en stop het spel als iemand zich onveilig voelt. Locaties worden gedeeld met deelnemers van hetzelfde potje.</p></div>
+
+      <!-- REQUIREMENT 1: UPDATE LOG SECTION AT BOTTOM OF HOME PAGE -->
+      <section class="panel update-log-panel">
+        <div class="panel-head">
+          <span>04 / SYSTEM UPDATES</span>
+          <span class="tag">PATCH NOTES</span>
+        </div>
+        <div class="update-log-heading">
+          <div>
+            <h2>Update Log</h2>
+            <p>Laatste updates, functies en patch notes voor de app.</p>
+          </div>
+          <button id="addUpdateBtn" class="btn secondary">➕ UPDATE TOEVOEGEN</button>
+        </div>
+
+        <!-- UPDATE FORM MODAL / PANEL -->
+        <div id="updateFormPanel" class="update-form-card" hidden>
+          <h3>Nieuwe Update Publiceren</h3>
+          <label>Titel van de update</label>
+          <input id="updateTitle" placeholder="Bijv. Versie 2.1 - Audio Bellen & Pause Functie">
+          <label>Informatie / Patch Notes</label>
+          <textarea id="updateContent" rows="4" placeholder="Beschrijf wat er nieuw of gewijzigd is in deze update…"></textarea>
+          <label>Publiceren op platform:</label>
+          <select id="updateTarget">
+            <option value="android">Android App</option>
+            <option value="github">GitHub Website</option>
+            <option value="both">Beide (Android &amp; GitHub)</option>
+          </select>
+          <div class="update-form-actions">
+            <button id="publishUpdateBtn" class="btn primary">UPDATE PUBLICEREN ↗</button>
+            <button id="cancelUpdateBtn" class="btn secondary">ANNULEREN</button>
+          </div>
+        </div>
+
+        <div id="updateLogList" class="update-log-list">
+          <p class="saved-games-empty">Update log laden…</p>
+        </div>
+      </section>
+
+      <div class="safety-note"><span>⚠</span><p><b>Speel slim.</b> Blijf op openbare, veilige plekken. Betreed geen privéterrein en stop het spel als iemand zich onveilig voelt.</p></div>
     </section>
 
     <section id="lobby" hidden>
-      <div class="lobby-top"><div><div class="eyebrow">OPERATIE / LOBBY</div><h1 id="lobbyTitle">Jachtseizoen</h1><p>Deel de code met alle deelnemers.</p></div><div class="code-card"><small>JOIN CODE</small><strong id="displayCode">------</strong><button id="copyCode" class="copy">KOPIEER</button></div></div>
-      <div id="locationCountdownBar" class="location-countdown" hidden><div class="location-countdown-label"><small>VOLGENDE LOCATIE-UPDATE</small><strong><span id="locationSendCountdown">--</span><span class="location-seconds">SEC</span></strong></div><p id="locationCountdownHint">Automatische GPS-update.</p></div>
-      <nav id="tabs" class="tabs"><button data-tab="location" class="active">⌖ Locatie</button><button data-tab="chat">▤ Chat</button><button data-tab="settings">⚙ Spel instellingen</button><button data-tab="teams">♟ Team beheer</button></nav>
+      <div class="lobby-top">
+        <div>
+          <div class="eyebrow">OPERATIE / LOBBY</div>
+          <h1 id="lobbyTitle">Jachtseizoen</h1>
+          <p>Deel de code met alle deelnemers.</p>
+        </div>
+        <div class="code-card">
+          <small>JOIN CODE</small>
+          <strong id="displayCode">------</strong>
+          <button id="copyCode" class="copy">KOPIEER</button>
+        </div>
+      </div>
+
+      <div id="locationCountdownBar" class="location-countdown" hidden>
+        <div class="location-countdown-group">
+          <div class="location-countdown-label">
+            <small>JOUW LOCATIE VERSTUREN IN</small>
+            <strong><span id="locationSendCountdown">--</span><span class="location-seconds">SEC</span></strong>
+          </div>
+          <div class="location-countdown-label">
+            <small>TEGENSTANDER BINNEN IN</small>
+            <strong><span id="locationReceiveCountdown">--</span><span class="location-seconds">SEC</span></strong>
+          </div>
+        </div>
+        <p id="locationCountdownHint">Automatische GPS-update.</p>
+      </div>
+
+      <!-- TABS INCLUDING NEW 'BELLEN' TAB -->
+      <nav id="tabs" class="tabs">
+        <button data-tab="location" class="active">⌖ Locatie</button>
+        <button data-tab="chat">▤ Chat</button>
+        <button data-tab="call">📞 Bellen</button>
+        <button data-tab="settings">⚙ Spel instellingen</button>
+        <button data-tab="teams">♟ Team beheer</button>
+      </nav>
+
+      <!-- TAB 1: LOCATION & MAP -->
       <div id="tab-location" class="tab-content">
-        <div class="status-row"><div><span class="status-dot"></span><b id="gameStatus">LOBBY</b><span class="muted-text"> / NEDERLANDSE KAART</span></div><span id="refreshLabel">Locatie wacht op start</span></div>
-        <div id="map"></div><div id="locationNotice" class="location-notice" role="status" aria-live="polite" hidden></div>
+        <div class="status-row">
+          <div><span class="status-dot"></span><b id="gameStatus">LOBBY</b><span class="muted-text"> / KAART PEEL EN MAAS</span></div>
+          <span id="refreshLabel">Locatie wacht op start</span>
+        </div>
+        <div id="map"></div>
+        <div id="locationNotice" class="location-notice" role="status" aria-live="polite" hidden></div>
+
         <section id="routePanel" class="route-panel" aria-live="polite" hidden>
-          <div class="route-panel-head"><div><small>ROUTEBEREKENING</small><h2>Afstand tot het andere team</h2></div><span id="routeStatus" class="route-status">Wacht op live spel</span></div>
+          <div class="route-panel-head">
+            <div><small>ROUTEBEREKENING</small><h2>Afstand tot het andere team</h2></div>
+            <span id="routeStatus" class="route-status">Wacht op live spel</span>
+          </div>
           <div id="routeSummary"><p class="route-empty">Start het potje en deel locaties om routes te berekenen.</p></div>
           <div id="routeTargets" class="route-targets"></div>
-          <p class="route-disclaimer">Routes lopen over het OpenStreetMap-wandelnetwerk. Tijden zijn schattingen (wandelen 4,8 km/u, rennen 10 km/u). De lijn naar een tegenstander toont de snelste berekende wandelroute. Verplaatsingslijnen tussen GPS-updates zijn schattingen; de werkelijke beweging tussen updates is niet bekend.</p>
+          <p class="route-disclaimer">Routes lopen over het OpenStreetMap-wandelnetwerk in Peel en Maas. Tijden zijn schattingen (wandelen 4,8 km/u, rennen 10 km/u).</p>
         </section>
-        <div class="map-legend"><span><i class="legend-police"></i> Politie</span><span><i class="legend-robber"></i> Boeven</span><span><i class="legend-offline"></i> Offline</span><span><i class="legend-route"></i> Snelste route (jouw teamkleur)</span><span><i class="legend-movement"></i> Geschat pad tegenstander</span></div>
-        <div class="map-foot">Kaartdata © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> • Routering: OSRM / FOSSGIS • GPS kan afwijken.</div>
+
+        <div class="map-legend">
+          <span><i class="legend-police"></i> Politie</span>
+          <span><i class="legend-robber"></i> Boeven</span>
+          <span><i class="legend-offline"></i> Offline</span>
+          <span><i class="legend-route"></i> Snelste route</span>
+        </div>
+
+        <div id="gameControls" class="game-controls" hidden>
+          <div>
+            <small>TIJD RESTEREND</small>
+            <strong id="countdown">--:--</strong>
+          </div>
+          <div class="control-buttons">
+            <button id="pauseGame" class="btn secondary">SPEL PAUZEREN</button>
+            <button id="resumeGame" class="btn primary" hidden>SPEL HERVATTEN</button>
+            <button id="offlineButton" class="btn secondary">ONZICHTBAAR MAKEN</button>
+            <button id="taggedButton" class="btn danger">BOEVEN GETIKT!</button>
+          </div>
+        </div>
+
+        <div id="gameOver" class="panel game-over" hidden>
+          <h2>GAME OVER</h2>
+          <p id="winnerText"></p>
+          <button id="robbersWinButton" class="btn primary">BOEVEN HEBBEN GEWONNEN</button>
+        </div>
       </div>
-      <div id="tab-chat" class="tab-content" hidden><div class="panel chat-panel"><div class="panel-head"><span>RADIO / TEAM CHAT</span><span class="tag">LIVE</span></div><div id="chatMessages" class="chat-messages"></div><form id="chatForm" class="chat-form"><input id="chatText" maxlength="300" placeholder="Stuur een bericht..." autocomplete="off"><button class="btn primary" type="submit">STUUR ↗</button></form></div></div>
-      <div id="tab-settings" class="tab-content" hidden><div class="panel"><div class="panel-head"><span>OPERATIEPARAMETERS</span><span id="ownerBadge" class="tag">ALLEEN HOST</span></div><div id="settingsFields" class="settings-grid">
-        <div><label>Speelduur (minuten)</label><input id="duration" type="number" min="1" max="240" value="60"></div>
-        <div><label>Locatie-update elke (seconden)</label><input id="updateInterval" type="number" min="5" max="600" value="30"></div>
-        <div><label>Offline-knoppen per team</label><input id="offlineUses" type="number" min="0" max="20" value="2"></div>
-        <div><label>Offline-duur (seconden)</label><input id="offlineDuration" type="number" min="5" max="600" value="60"></div>
-      </div><div class="setting-actions"><button id="saveSettings" class="btn secondary">INSTELLINGEN OPSLAAN</button><button id="startGame" class="btn primary">▶ POTJE BEGINNEN</button></div><p class="hint">Wijs in Team beheer spelers toe aan Politie of Boeven. Starten kan alleen door de eigenaar.</p></div></div>
-      <div id="tab-teams" class="tab-content" hidden><div class="team-columns"><div class="panel"><div class="panel-head"><span>TEAMS & SPELERS</span><span class="tag">ROSTER</span></div><div id="teamList"></div><div class="add-team"><input id="newTeamName" placeholder="Nieuwe teamnaam"><select id="newTeamRole"><option value="police">Politie</option><option value="robber">Boeven</option></select><button id="addTeam" class="btn secondary">+ TEAM</button></div></div><div class="panel"><div class="panel-head"><span>DEELNEMERS</span><span class="tag muted">TOEWIJZEN</span></div><div id="memberList"></div><p class="hint">Spelers kunnen hun callsign aanpassen. De host beheert teamindeling en rollen.</p></div></div></div>
-      <div id="gameControls" class="game-controls" hidden><div><small>RESTERENDE SPEELTIJD</small><strong id="countdown">--:--</strong></div><div class="control-buttons"><button id="offlineButton" class="btn secondary">◌ OFFLINE AANVRAGEN</button><button id="taggedButton" class="btn danger">✓ BOEVEN GETIKT</button><button id="robbersWinButton" class="btn secondary">BOEVEN WINNEN</button></div></div>
-      <div id="gameOver" class="panel game-over" hidden><div class="eyebrow">OPERATIE AFGEROND</div><h2>GAME OVER<span class="accent">.</span></h2><p id="winnerText"></p></div>
-      <button id="leaveGame" class="leave">← Terug naar start</button>
+
+      <!-- TAB 2: CHAT -->
+      <div id="tab-chat" class="tab-content" hidden>
+        <div class="panel chat-panel">
+          <div id="chatMessages" class="chat-messages"></div>
+          <form id="chatForm" class="chat-form">
+            <input id="chatText" placeholder="Bericht sturen naar je medespelers…">
+            <button class="btn primary">VERSTUUR</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- REQUIREMENT 2: TAB 3: BELLEN (VOICE CALLING) -->
+      <div id="tab-call" class="tab-content" hidden>
+        <div class="panel">
+          <div class="panel-head">
+            <span>AUDIO COMMUNICATIE</span>
+            <span class="tag">VOICE CALLS</span>
+          </div>
+          <h2>Live Bellen</h2>
+          <p>Bel direct met spelers of teams. Gesprekken blijven actief als je van tabblad wisselt!</p>
+
+          <div class="call-targets-section">
+            <h3>Kies een speler of team om te bellen</h3>
+            <div id="callTargetsList" class="call-targets-list">
+              <p class="saved-games-empty">Spelers laden…</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: SETTINGS -->
+      <div id="tab-settings" class="tab-content" hidden>
+        <div class="panel">
+          <div class="panel-head"><span>INSTELLINGEN</span><span id="ownerBadge" class="tag">HOST</span></div>
+          <div class="settings-grid">
+            <div>
+              <label>Spelduur (minuten)</label>
+              <input id="duration" type="number" min="1" max="240" value="60">
+            </div>
+            <div>
+              <label>Locatie-update Politie naar Boeven (sec)</label>
+              <input id="policeInterval" type="number" min="5" max="600" value="30">
+            </div>
+            <div>
+              <label>Locatie-update Boeven naar Politie (sec)</label>
+              <input id="robberInterval" type="number" min="5" max="600" value="60">
+            </div>
+            <div>
+              <label>Aantal offline momenten boeven</label>
+              <input id="offlineUses" type="number" min="0" max="20" value="2">
+            </div>
+            <div>
+              <label>Duur per offline moment (sec)</label>
+              <input id="offlineDuration" type="number" min="5" max="600" value="60">
+            </div>
+          </div>
+          <div class="setting-actions">
+            <button id="saveSettings" class="btn primary">INSTELLINGEN OPSLAAN</button>
+            <button id="startGame" class="btn primary">SPEL STARTEN ↗</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 5: TEAMS -->
+      <div id="tab-teams" class="tab-content" hidden>
+        <div class="panel">
+          <div class="panel-head"><span>TEAM BEHEER</span><span class="tag">SQUAD</span></div>
+          <div class="team-columns">
+            <div><h3>Bestaande teams</h3><div id="teamList"></div></div>
+            <div><h3>Spelers verdelen</h3><div id="memberList"></div></div>
+          </div>
+          <div class="add-team">
+            <input id="newTeamName" placeholder="Nieuwe teamnaam">
+            <select id="newTeamRole">
+              <option value="police">Politie</option>
+              <option value="robber">Boeven</option>
+            </select>
+            <button id="addTeam" class="btn secondary">TEAM TOEVOEGEN</button>
+          </div>
+        </div>
+      </div>
+
+      <button id="leaveGame" class="leave">← VERLAAT POTJE EN GA TERUG NAAR HOME</button>
     </section>
   </main>
-  <footer>JACHTSEIZOEN <span>•</span> NIET OFFICIEEL VERBONDEN AAN EEN TV-PRODUCTIE</footer>
+
+  <footer>JACHTSEIZOEN <span>•</span> PEEL EN MAAS FIELD TRACKING <span>•</span> FIREBASE</footer>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script type="module" src="app.js"></script>
-</body></html>
+</body>
+</html>
