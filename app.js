@@ -16,6 +16,13 @@ if (!firebase.apps.length) {
 const db = firebase.database();
 const $ = id => document.getElementById(id);
 
+// DETECTEER OF DE CODE IN DE ANDROID APP (WEBVIEW) OF OP DE WEBSITE (GITHUB PAGES) DRAAIT
+function isAndroidAppEnvironment() {
+  return /JachtseizoenAndroidApp/i.test(navigator.userAgent) ||
+         window.location.hostname === "appassets.androidplatform.net" ||
+         /wv/i.test(navigator.userAgent);
+}
+
 // Peel en Maas / Panningen Coördinaten (Limburg)
 const PEEL_EN_MAAS = [51.3250, 5.9800];
 const rtcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
@@ -106,19 +113,30 @@ async function loadUpdateLog() {
       return;
     }
     const updatesObj = snap.val() || {};
-    // FILTER: ALLEEN 'android' EN 'both' TARGETS TONEN IN DE ANDROID APP
+    const isApp = isAndroidAppEnvironment();
+
+    // AUTOMATISCHE FILTERING OP OMSCHRIJVING VAK
     const updates = Object.values(updatesObj)
-      .filter(item => item && (item.target === "android" || item.target === "both"))
+      .filter(item => {
+        if (!item || !item.target) return false;
+        if (isApp) {
+          // In de Android App: Toon alleen 'android' of 'both'
+          return item.target === "android" || item.target === "both";
+        } else {
+          // Op de Website / GitHub Pages: Toon alleen 'github' of 'both'
+          return item.target === "github" || item.target === "both";
+        }
+      })
       .sort((a, b) => (b.at || 0) - (a.at || 0));
 
     if (!updates.length) {
-      container.innerHTML = '<p class="saved-games-empty">Geen updates voor de Android app beschikbaar.</p>';
+      container.innerHTML = `<p class="saved-games-empty">Geen updates voor ${isApp ? "de Android App" : "de Website"} beschikbaar.</p>`;
       return;
     }
 
     container.innerHTML = updates.map(u => {
       const dateStr = u.at ? new Date(u.at).toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" }) : "";
-      const targetText = u.target === "both" ? "Android &amp; GitHub" : "Android App";
+      const targetText = u.target === "both" ? "Android &amp; GitHub Website" : u.target === "android" ? "Android App" : "GitHub Website";
       return `<article class="update-log-card"><div class="update-log-card-head"><strong>${esc(u.title)}</strong><small>${dateStr}</small></div><p>${esc(u.content)}</p><span class="platform-badge">${targetText}</span></article>`;
     }).join("");
   } catch (e) {
