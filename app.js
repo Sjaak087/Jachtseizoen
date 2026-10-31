@@ -72,24 +72,6 @@ function getPosition() {
   });
 }
 
-// LOCATIE TOESTAAN KNOP
-if ($("enableLocation")) {
-  $("enableLocation").onclick = async () => {
-    try {
-      state.pos = await getPosition();
-      if ($("locationError")) $("locationError").hidden = true;
-      show("home");
-      startWatch();
-      renderSavedGames();
-      refreshSavedGames();
-      loadUpdateLog();
-    } catch (e) {
-      state.geoError = "permission";
-      if ($("locationError")) $("locationError").hidden = false;
-    }
-  };
-}
-
 // ==========================================
 // REQUIREMENT 1: UPDATE LOG & ADMIN AUTH
 // ==========================================
@@ -124,53 +106,51 @@ async function loadUpdateLog() {
   }
 }
 
-if ($("addUpdateBtn")) {
-  $("addUpdateBtn").onclick = async () => {
-    try {
-      const snap = await get(ref(db, "admin/password"));
-      const storedPw = snap.exists() ? snap.val() : null;
+async function handleAddUpdateClick() {
+  try {
+    const snap = await get(ref(db, "admin/password"));
+    const storedPw = snap.exists() ? snap.val() : null;
 
-      if (!storedPw) {
-        const newPw = prompt("Er is nog geen Admin wachtwoord ingesteld.\nStel nu een wachtwoord in voor de Update Log:");
-        if (!newPw || !newPw.trim()) return message("Wachtwoord instellen geannuleerd.");
-        await set(ref(db, "admin/password"), newPw.trim());
-        message("Admin wachtwoord succesvol opgeslagen!");
+    if (!storedPw) {
+      const newPw = prompt("🔒 STEL ADMIN WACHTWOORD IN\nEr is nog geen wachtwoord voor de Update Log ingesteld.\nVoer een nieuw wachtwoord in:");
+      if (!newPw || !newPw.trim()) return message("Wachtwoord instellen geannuleerd.");
+      await set(ref(db, "admin/password"), newPw.trim());
+      message("✅ Admin wachtwoord opgeslagen!\nJe kunt nu updates publiceren.");
+      if ($("updateFormPanel")) $("updateFormPanel").hidden = false;
+    } else {
+      const inputPw = prompt("🔒 ADMIN AUTHENTICATIE\nVoer het Admin wachtwoord in om de Update Log te bewerken:");
+      if (inputPw === null) return;
+      if (inputPw.trim() === storedPw) {
         if ($("updateFormPanel")) $("updateFormPanel").hidden = false;
       } else {
-        const inputPw = prompt("Voer het Admin wachtwoord in om een update te publiceren:");
-        if (inputPw === storedPw) {
-          if ($("updateFormPanel")) $("updateFormPanel").hidden = false;
-        } else if (inputPw !== null) {
-          message("Onjuist wachtwoord! Toegang geweigerd.");
-        }
+        message("❌ Onjuist wachtwoord! Toegang geweigerd.");
       }
-    } catch (e) { message("Authenticatie mislukt: " + e.message); }
-  };
+    }
+  } catch (e) {
+    message("Fout bij authenticatie: " + e.message);
+  }
 }
 
-if ($("cancelUpdateBtn")) {
-  $("cancelUpdateBtn").onclick = () => {
+async function publishUpdate() {
+  const titleInput = $("updateTitle");
+  const contentInput = $("updateContent");
+  const targetInput = $("updateTarget");
+
+  if (!titleInput || !contentInput) return;
+  const title = titleInput.value.trim();
+  const content = contentInput.value.trim();
+  const target = targetInput ? targetInput.value : "both";
+
+  if (!title || !content) return message("Vul zowel een titel als informatie in.");
+
+  try {
+    await push(ref(db, "updates"), { title, content, target, at: Date.now(), author: "Admin" });
+    titleInput.value = "";
+    contentInput.value = "";
     if ($("updateFormPanel")) $("updateFormPanel").hidden = true;
-  };
-}
-
-if ($("publishUpdateBtn")) {
-  $("publishUpdateBtn").onclick = async () => {
-    const title = $("updateTitle").value.trim();
-    const content = $("updateContent").value.trim();
-    const target = $("updateTarget").value;
-
-    if (!title || !content) return message("Vul zowel een titel als informatie in.");
-
-    try {
-      await push(ref(db, "updates"), { title, content, target, at: Date.now(), author: "Admin" });
-      $("updateTitle").value = "";
-      $("updateContent").value = "";
-      if ($("updateFormPanel")) $("updateFormPanel").hidden = true;
-      message("Update succesvol gepubliceerd!");
-      loadUpdateLog();
-    } catch (e) { message("Publiceren mislukt: " + e.message); }
-  };
+    message("Update succesvol gepubliceerd!");
+    loadUpdateLog();
+  } catch (e) { message("Publiceren mislukt: " + e.message); }
 }
 
 // ==========================================
@@ -192,8 +172,6 @@ function renderCallTargets() {
   if (!container || !state.game) return;
   const members = state.game.members || {};
   const teams = state.game.teams || {};
-  const me = members[state.uid];
-  const myRole = teams[me?.teamId]?.role;
 
   const others = Object.entries(members).filter(([uid]) => uid !== state.uid);
 
@@ -272,7 +250,7 @@ async function initiateCall(targetUid) {
       }
     });
 
-    // Luisteren naar ICE candidates van ontvanger
+    // Luisteren naar ICE candidates
     listen(`games/${state.gameId}/calls/${callId}/targetCandidates`, candidateData => {
       if (!candidateData || !state.peerConnection) return;
       Object.values(candidateData).forEach(cand => {
@@ -286,12 +264,23 @@ async function initiateCall(targetUid) {
   }
 }
 
+// FIX INCOMING CALLS: ALLEEN VERSE OPROEPEN ONTVANGEN (< 45 SEC OUD)
 function listenIncomingCalls() {
   if (!state.gameId) return;
   listen(`games/${state.gameId}/calls`, callsObj => {
     if (!callsObj) return;
+    const now = Date.now();
     Object.entries(callsObj).forEach(([callId, callData]) => {
-      if (callData.targetUid === state.uid && callData.status === "ringing" && !state.activeCallId) {
+      const ageMs = now - Number(callData.createdAt || 0);
+
+      // Oude verlopen oproepen automatisch opgeschoond
+      if (callData.status === "ringing" && ageMs > 45000) {
+        update(ref(db, `games/${state.gameId}/calls/${callId}`), { status: "ended" });
+        return;
+      }
+
+      // Alleen reageren als oproep VERS is (< 45 sec), voor JOU bestemd, en je nog niet belt
+      if (callData.targetUid === state.uid && callData.status === "ringing" && ageMs <= 45000 && !state.activeCallId && callData.callerUid !== state.uid) {
         state.incomingCallId = callId;
         if ($("callerName")) $("callerName").textContent = callData.callerName || "Speler";
         if ($("callerTeam")) $("callerTeam").textContent = `${callData.callerTeamName || "Team"} (${callData.callerRole === "police" ? "Politie" : "Boeven"})`;
@@ -299,76 +288,6 @@ function listenIncomingCalls() {
       }
     });
   });
-}
-
-// OPNEMEN INCOMENDE OPROEP
-if ($("acceptCallBtn")) {
-  $("acceptCallBtn").onclick = async () => {
-    const callId = state.incomingCallId;
-    if (!callId) return;
-    if ($("incomingCallOverlay")) $("incomingCallOverlay").hidden = true;
-    state.activeCallId = callId;
-
-    try {
-      const snap = await get(ref(db, `games/${state.gameId}/calls/${callId}`));
-      if (!snap.exists()) return message("Oproep is al verlopen.");
-      const callData = snap.val();
-
-      const stream = await getMicrophoneStream();
-      state.peerConnection = new RTCPeerConnection(rtcConfig);
-      stream.getTracks().forEach(track => state.peerConnection.addTrack(track, stream));
-
-      state.peerConnection.ontrack = event => {
-        if ($("remoteAudio")) $("remoteAudio").srcObject = event.streams[0];
-      };
-
-      state.peerConnection.onicecandidate = event => {
-        if (event.candidate) {
-          push(ref(db, `games/${state.gameId}/calls/${callId}/targetCandidates`), event.candidate.toJSON());
-        }
-      };
-
-      await state.peerConnection.setRemoteDescription(new RTCSessionDescription(callData.offer));
-      const answer = await state.peerConnection.createAnswer();
-      await state.peerConnection.setLocalDescription(answer);
-
-      await update(ref(db, `games/${state.gameId}/calls/${callId}`), {
-        answer: { type: answer.type, sdp: answer.sdp },
-        status: "connected"
-      });
-
-      // Luisteren naar ICE candidates van beller
-      listen(`games/${state.gameId}/calls/${callId}/callerCandidates`, candidateData => {
-        if (!candidateData || !state.peerConnection) return;
-        Object.values(candidateData).forEach(cand => {
-          try { state.peerConnection.addIceCandidate(new RTCIceCandidate(cand)); } catch (e) {}
-        });
-      });
-
-      // Luisteren naar beëindigen
-      listen(`games/${state.gameId}/calls/${callId}/status`, status => {
-        if (status === "ended") endCall();
-      });
-
-      showActiveCallBar(`IN GESPREK MET ${callData.callerName.toUpperCase()}`);
-      startCallTimer();
-
-    } catch (e) {
-      message("Opnemen mislukt: " + e.message);
-      endCall();
-    }
-  };
-}
-
-// WEIGEREN INCOMENDE OPROEP
-if ($("rejectCallBtn")) {
-  $("rejectCallBtn").onclick = async () => {
-    if (state.incomingCallId) {
-      await update(ref(db, `games/${state.gameId}/calls/${state.incomingCallId}`), { status: "rejected" });
-      state.incomingCallId = null;
-    }
-    if ($("incomingCallOverlay")) $("incomingCallOverlay").hidden = true;
-  };
 }
 
 function showActiveCallBar(title) {
@@ -388,7 +307,7 @@ function startCallTimer() {
 }
 
 function endCall() {
-  if (state.activeCallId) {
+  if (state.activeCallId && state.gameId) {
     update(ref(db, `games/${state.gameId}/calls/${state.activeCallId}`), { status: "ended" });
   }
   if (state.peerConnection) {
@@ -408,8 +327,6 @@ function endCall() {
   if ($("incomingCallOverlay")) $("incomingCallOverlay").hidden = true;
   if ($("remoteAudio")) $("remoteAudio").srcObject = null;
 }
-
-if ($("hangupBtn")) $("hangupBtn").onclick = endCall;
 
 function getMyInterval() {
   const g = state.game; if (!g) return 30;
@@ -852,15 +769,6 @@ async function openSavedGame(id) {
   } catch (e) { message("Potje openen mislukt. Controleer je verbinding.\n" + e.message); }
 }
 
-if ($("savedGamesList")) {
-  $("savedGamesList").addEventListener("click", e => {
-    const button = e.target.closest("[data-open-saved]");
-    if (button) openSavedGame(button.dataset.openSaved);
-  });
-}
-
-if ($("refreshSavedGames")) $("refreshSavedGames").onclick = refreshSavedGames;
-
 function applyGame(g) {
   if (!g) return;
   state.game = g;
@@ -923,11 +831,34 @@ async function enterGame(id, member, owner = false) {
   listenIncomingCalls();
 }
 
-// POTJE AANMAKEN
-if ($("createGame")) {
-  $("createGame").onclick = async () => {
+// DELEGATED EVENT LISTENERS (ALTIJD WERKING GEGARANDEERD)
+document.addEventListener("click", async e => {
+  const target = e.target;
+  if (!target) return;
+
+  // Update Log: Toevoegen Knop
+  if (target.id === "addUpdateBtn" || target.closest("#addUpdateBtn")) {
+    e.preventDefault();
+    handleAddUpdateClick();
+  }
+
+  // Update Log: Annuleren
+  if (target.id === "cancelUpdateBtn" || target.closest("#cancelUpdateBtn")) {
+    e.preventDefault();
+    if ($("updateFormPanel")) $("updateFormPanel").hidden = true;
+  }
+
+  // Update Log: Publiceren
+  if (target.id === "publishUpdateBtn" || target.closest("#publishUpdateBtn")) {
+    e.preventDefault();
+    publishUpdate();
+  }
+
+  // Potje Aanmaken
+  if (target.id === "createGame" || target.closest("#createGame")) {
+    e.preventDefault();
     if (!hasLocation()) return message("Locatie is vereist.");
-    const name = $("gameName").value.trim();
+    const name = $("gameName") ? $("gameName").value.trim() : "";
     if (!name) return message("Vul een naam in.");
     const id = code(), now = Date.now();
     const game = {
@@ -941,15 +872,15 @@ if ($("createGame")) {
       await set(ref(db, `codes/${id}`), id);
       rememberGame(id, game, true);
       await enterGame(id, game.members[state.uid], true);
-    } catch (e) { message("Potje maken mislukt. Controleer je internet en database regels.\n" + e.message); }
-  };
-}
+    } catch (err) { message("Potje maken mislukt: " + err.message); }
+  }
 
-// JOIN POTJE
-if ($("joinGame")) {
-  $("joinGame").onclick = async () => {
+  // Join Potje
+  if (target.id === "joinGame" || target.closest("#joinGame")) {
+    e.preventDefault();
     if (!hasLocation()) return message("Locatie is vereist.");
-    const c = $("joinCode").value.trim().toUpperCase(), name = $("joinName").value.trim();
+    const c = $("joinCode") ? $("joinCode").value.trim().toUpperCase() : "";
+    const name = $("joinName") ? $("joinName").value.trim() : "";
     if (!c || !name) return message("Vul zowel de code als je naam in.");
     try {
       const snap = await get(ref(db, `games/${c}`));
@@ -960,16 +891,166 @@ if ($("joinGame")) {
       await set(ref(db, `games/${c}/members/${state.uid}`), member);
       rememberGame(c, g, g.owner === state.uid);
       await enterGame(c, member, g.owner === state.uid);
-    } catch (e) { message("Joinen mislukt. Controleer je verbinding.\n" + e.message); }
-  };
-}
+    } catch (err) { message("Joinen mislukt: " + err.message); }
+  }
 
-if ($("copyCode")) {
-  $("copyCode").onclick = async () => {
+  // Kopieer Code
+  if (target.id === "copyCode" || target.closest("#copyCode")) {
+    e.preventDefault();
     try { await navigator.clipboard.writeText($("displayCode").textContent); $("copyCode").textContent = "GEKOPIEERD"; }
     catch { message("Code: " + $("displayCode").textContent); }
-  };
-}
+  }
+
+  // Instellingen Opslaan
+  if (target.id === "saveSettings" || target.closest("#saveSettings")) {
+    e.preventDefault();
+    const settings = {
+      duration: Math.max(1, Math.min(240, Number($("duration")?.value) || 60)),
+      policeInterval: Math.max(5, Math.min(600, Number($("policeInterval")?.value) || 30)),
+      robberInterval: Math.max(5, Math.min(600, Number($("robberInterval")?.value) || 60)),
+      offlineUses: Math.max(0, Math.min(20, Number($("offlineUses")?.value) || 0)),
+      offlineDuration: Math.max(5, Math.min(600, Number($("offlineDuration")?.value) || 60))
+    };
+    await update(ref(db, `games/${state.gameId}/settings`), settings);
+    message("Instellingen opgeslagen.");
+  }
+
+  // Team Toevoegen
+  if (target.id === "addTeam" || target.closest("#addTeam")) {
+    e.preventDefault();
+    if (!state.owner) return;
+    const name = $("newTeamName") ? $("newTeamName").value.trim() : "";
+    if (!name) return message("Vul een teamnaam in.");
+    const id = push(ref(db, `games/${state.gameId}/teams`)).key;
+    await set(ref(db, `games/${state.gameId}/teams/${id}`), { name: name.slice(0, 30), role: $("newTeamRole").value });
+    if ($("newTeamName")) $("newTeamName").value = "";
+  }
+
+  // Spel Starten
+  if (target.id === "startGame" || target.closest("#startGame")) {
+    e.preventDefault();
+    if (!state.owner) return;
+    const g = (await get(ref(db, `games/${state.gameId}`))).val();
+    const teams = Object.values(g.teams || {}), members = Object.values(g.members || {});
+    if (!teams.some(t => t.role === "police") || !teams.some(t => t.role === "robber")) return message("Maak minimaal één Politie-team en één Boeven-team.");
+    if (members.some(m => !m.teamId)) return message("Wijs iedere speler toe aan een team voordat je start.");
+    if (!confirm("Het spel starten? De timer begint direct.")) return;
+    await update(ref(db, `games/${state.gameId}`), { status: "running", startedAt: Date.now(), endsAt: Date.now() + (g.settings?.duration || 60) * 60000 });
+    await maybePublish(true);
+  }
+
+  // Spel Pauzeren
+  if (target.id === "pauseGame" || target.closest("#pauseGame")) {
+    e.preventDefault();
+    if (!state.owner || state.game?.status !== "running") return;
+    const remaining = Math.max(0, (state.game.endsAt || Date.now()) - Date.now());
+    await update(ref(db, `games/${state.gameId}`), { status: "paused", pausedRemaining: remaining, pausedAt: Date.now() });
+    message("Het spel is gepauzeerd. De timer en GPS-updates zijn stilgezet.");
+  }
+
+  // Spel Hervatten
+  if (target.id === "resumeGame" || target.closest("#resumeGame")) {
+    e.preventDefault();
+    if (!state.owner || state.game?.status !== "paused") return;
+    const remaining = state.game.pausedRemaining || ((state.game.settings?.duration || 60) * 60000);
+    await update(ref(db, `games/${state.gameId}`), { status: "running", endsAt: Date.now() + remaining, pausedRemaining: null, pausedAt: null });
+    await maybePublish(true);
+    message("Het spel is hervat!");
+  }
+
+  // Verlaat Potje
+  if (target.id === "leaveGame" || target.closest("#leaveGame")) {
+    e.preventDefault();
+    if (confirm("Terug naar start? Je blijft als deelnemer in het potje staan.")) {
+      cleanListeners();
+      endCall();
+      state.gameId = null; state.game = null; state.member = null; state.owner = false; state.lastSent = 0;
+      show("home"); renderSavedGames(); refreshSavedGames(); loadUpdateLog();
+    }
+  }
+
+  // Refresh Saved Games
+  if (target.id === "refreshSavedGames" || target.closest("#refreshSavedGames")) {
+    e.preventDefault();
+    refreshSavedGames();
+  }
+
+  // Open Saved Game
+  const openBtn = target.closest("[data-open-saved]");
+  if (openBtn) {
+    e.preventDefault();
+    openSavedGame(openBtn.dataset.openSaved);
+  }
+
+  // Opnemen Call
+  if (target.id === "acceptCallBtn" || target.closest("#acceptCallBtn")) {
+    e.preventDefault();
+    const callId = state.incomingCallId;
+    if (!callId) return;
+    if ($("incomingCallOverlay")) $("incomingCallOverlay").hidden = true;
+    state.activeCallId = callId;
+
+    try {
+      const snap = await get(ref(db, `games/${state.gameId}/calls/${callId}`));
+      if (!snap.exists()) return message("Oproep is al verlopen.");
+      const callData = snap.val();
+
+      const stream = await getMicrophoneStream();
+      state.peerConnection = new RTCPeerConnection(rtcConfig);
+      stream.getTracks().forEach(track => state.peerConnection.addTrack(track, stream));
+
+      state.peerConnection.ontrack = evt => {
+        if ($("remoteAudio")) $("remoteAudio").srcObject = evt.streams[0];
+      };
+
+      state.peerConnection.onicecandidate = evt => {
+        if (evt.candidate) push(ref(db, `games/${state.gameId}/calls/${callId}/targetCandidates`), evt.candidate.toJSON());
+      };
+
+      await state.peerConnection.setRemoteDescription(new RTCSessionDescription(callData.offer));
+      const answer = await state.peerConnection.createAnswer();
+      await state.peerConnection.setLocalDescription(answer);
+
+      await update(ref(db, `games/${state.gameId}/calls/${callId}`), {
+        answer: { type: answer.type, sdp: answer.sdp },
+        status: "connected"
+      });
+
+      listen(`games/${state.gameId}/calls/${callId}/callerCandidates`, candidateData => {
+        if (!candidateData || !state.peerConnection) return;
+        Object.values(candidateData).forEach(cand => {
+          try { state.peerConnection.addIceCandidate(new RTCIceCandidate(cand)); } catch (err) {}
+        });
+      });
+
+      listen(`games/${state.gameId}/calls/${callId}/status`, status => {
+        if (status === "ended") endCall();
+      });
+
+      showActiveCallBar(`IN GESPREK MET ${callData.callerName.toUpperCase()}`);
+      startCallTimer();
+    } catch (err) {
+      message("Opnemen mislukt: " + err.message);
+      endCall();
+    }
+  }
+
+  // Weigeren Call
+  if (target.id === "rejectCallBtn" || target.closest("#rejectCallBtn")) {
+    e.preventDefault();
+    if (state.incomingCallId && state.gameId) {
+      await update(ref(db, `games/${state.gameId}/calls/${state.incomingCallId}`), { status: "rejected" });
+      state.incomingCallId = null;
+    }
+    if ($("incomingCallOverlay")) $("incomingCallOverlay").hidden = true;
+  }
+
+  // Ophangen Call
+  if (target.id === "hangupBtn" || target.closest("#hangupBtn")) {
+    e.preventDefault();
+    endCall();
+  }
+});
 
 // TABS SWITCHEN
 document.querySelectorAll("[data-tab]").forEach(b => {
@@ -979,68 +1060,6 @@ document.querySelectorAll("[data-tab]").forEach(b => {
     if (b.dataset.tab === "location" && state.map) setTimeout(() => state.map.invalidateSize(), 100);
   };
 });
-
-// INSTELLINGEN OPSLAAN
-if ($("saveSettings")) {
-  $("saveSettings").onclick = async () => {
-    const settings = {
-      duration: Math.max(1, Math.min(240, Number($("duration").value) || 60)),
-      policeInterval: Math.max(5, Math.min(600, Number($("policeInterval").value) || 30)),
-      robberInterval: Math.max(5, Math.min(600, Number($("robberInterval").value) || 60)),
-      offlineUses: Math.max(0, Math.min(20, Number($("offlineUses").value) || 0)),
-      offlineDuration: Math.max(5, Math.min(600, Number($("offlineDuration").value) || 60))
-    };
-    await update(ref(db, `games/${state.gameId}/settings`), settings);
-    message("Instellingen opgeslagen.");
-  };
-}
-
-// TEAM TOEVOEGEN
-if ($("addTeam")) {
-  $("addTeam").onclick = async () => {
-    if (!state.owner) return;
-    const name = $("newTeamName").value.trim();
-    if (!name) return message("Vul een teamnaam in.");
-    const id = push(ref(db, `games/${state.gameId}/teams`)).key;
-    await set(ref(db, `games/${state.gameId}/teams/${id}`), { name: name.slice(0, 30), role: $("newTeamRole").value });
-    $("newTeamName").value = "";
-  };
-}
-
-// SPEL STARTEN
-if ($("startGame")) {
-  $("startGame").onclick = async () => {
-    if (!state.owner) return;
-    const g = (await get(ref(db, `games/${state.gameId}`))).val();
-    const teams = Object.values(g.teams || {}), members = Object.values(g.members || {});
-    if (!teams.some(t => t.role === "police") || !teams.some(t => t.role === "robber")) return message("Maak minimaal één Politie-team en één Boeven-team.");
-    if (members.some(m => !m.teamId)) return message("Wijs iedere speler toe aan een team voordat je start.");
-    if (!confirm("Het spel starten? De timer begint direct.")) return;
-    await update(ref(db, `games/${state.gameId}`), { status: "running", startedAt: Date.now(), endsAt: Date.now() + (g.settings?.duration || 60) * 60000 });
-    await maybePublish(true);
-  };
-}
-
-// SPEL PAUZEREN
-if ($("pauseGame")) {
-  $("pauseGame").onclick = async () => {
-    if (!state.owner || state.game?.status !== "running") return;
-    const remaining = Math.max(0, (state.game.endsAt || Date.now()) - Date.now());
-    await update(ref(db, `games/${state.gameId}`), { status: "paused", pausedRemaining: remaining, pausedAt: Date.now() });
-    message("Het spel is gepauzeerd. De timer en GPS-updates zijn stilgezet.");
-  };
-}
-
-// SPEL HERVATTEN
-if ($("resumeGame")) {
-  $("resumeGame").onclick = async () => {
-    if (!state.owner || state.game?.status !== "paused") return;
-    const remaining = state.game.pausedRemaining || ((state.game.settings?.duration || 60) * 60000);
-    await update(ref(db, `games/${state.gameId}`), { status: "running", endsAt: Date.now() + remaining, pausedRemaining: null, pausedAt: null });
-    await maybePublish(true);
-    message("Het spel is hervat!");
-  };
-}
 
 // CHAT VERSTUREN
 if ($("chatForm")) {
@@ -1083,22 +1102,11 @@ if ($("robbersWinButton")) {
   };
 }
 
-// LEAVE GAME / VERLAAT POTJE KNOP
-if ($("leaveGame")) {
-  $("leaveGame").onclick = () => {
-    if (confirm("Terug naar start? Je blijft als deelnemer in het potje staan.")) {
-      cleanListeners();
-      state.gameId = null; state.game = null; state.member = null; state.owner = false; state.lastSent = 0;
-      show("home"); renderSavedGames(); refreshSavedGames(); loadUpdateLog();
-    }
-  };
-}
-
 window.addEventListener("beforeunload", () => {
   cleanListeners();
   if (state.watch !== null) navigator.geolocation.clearWatch(state.watch);
   endCall();
 });
 
-// STARTUP LOAD
+// STARTUP INITIALISATIE
 loadUpdateLog();
