@@ -1,6 +1,4 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getDatabase, ref, set, update, get, onValue, push, remove } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
-
+// FIREBASE COMPAT CONFIGURATIE (WERKT 100% OP GITHUB PAGES, ANDROID EN LOKAAL)
 const firebaseConfig = {
   apiKey: "AIzaSyBd-H-AcpJccJf0Ai3ctZZqyq0Ih-z95UI",
   authDomain: "jachtseizoen-d03d9.firebaseapp.com",
@@ -11,8 +9,11 @@ const firebaseConfig = {
   appId: "1:556835426876:web:3ec343e598ce6f58bf2939",
   measurementId: "G-33BJVSWEXP"
 };
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
+const db = firebase.database();
 const $ = id => document.getElementById(id);
 
 // Peel en Maas / Panningen Coördinaten (Limburg)
@@ -20,7 +21,7 @@ const PEEL_EN_MAAS = [51.3250, 5.9800];
 const rtcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
 const state = {
-  uid: localStorage.getItem("js_uid") || crypto.randomUUID(),
+  uid: localStorage.getItem("js_uid") || (crypto && crypto.randomUUID ? crypto.randomUUID() : 'u_' + Math.random().toString(36).substr(2, 9)),
   pos: null, watch: null, gameId: null, game: null, member: null,
   owner: false, map: null, markers: {}, unsubs: [], tick: null,
   lastSent: 0, lastAttempt: 0, publishing: false, geoError: null,
@@ -56,7 +57,9 @@ function cleanListeners() {
 }
 
 function listen(path, cb) {
-  state.unsubs.push(onValue(ref(db, path), s => cb(s.val())));
+  const ref = db.ref(path);
+  const handler = ref.on("value", snapshot => cb(snapshot.val()));
+  state.unsubs.push(() => ref.off("value", handler));
 }
 
 function hasLocation() { return !!state.pos; }
@@ -72,6 +75,24 @@ function getPosition() {
   });
 }
 
+// LOCATIE TOESTAAN KNOP
+if ($("enableLocation")) {
+  $("enableLocation").onclick = async () => {
+    try {
+      state.pos = await getPosition();
+      if ($("locationError")) $("locationError").hidden = true;
+      show("home");
+      startWatch();
+      renderSavedGames();
+      refreshSavedGames();
+      loadUpdateLog();
+    } catch (e) {
+      state.geoError = "permission";
+      if ($("locationError")) $("locationError").hidden = false;
+    }
+  };
+}
+
 // ==========================================
 // REQUIREMENT 1: UPDATE LOG & ADMIN AUTH
 // ==========================================
@@ -79,7 +100,7 @@ async function loadUpdateLog() {
   const container = $("updateLogList");
   if (!container) return;
   try {
-    const snap = await get(ref(db, "updates"));
+    const snap = await db.ref("updates").get();
     if (!snap.exists()) {
       container.innerHTML = '<p class="saved-games-empty">Nog geen updates gepubliceerd.</p>';
       return;
@@ -108,13 +129,13 @@ async function loadUpdateLog() {
 
 async function handleAddUpdateClick() {
   try {
-    const snap = await get(ref(db, "admin/password"));
+    const snap = await db.ref("admin/password").get();
     const storedPw = snap.exists() ? snap.val() : null;
 
     if (!storedPw) {
       const newPw = prompt("🔒 STEL ADMIN WACHTWOORD IN\nEr is nog geen wachtwoord voor de Update Log ingesteld.\nVoer een nieuw wachtwoord in:");
       if (!newPw || !newPw.trim()) return message("Wachtwoord instellen geannuleerd.");
-      await set(ref(db, "admin/password"), newPw.trim());
+      await db.ref("admin/password").set(newPw.trim());
       message("✅ Admin wachtwoord opgeslagen!\nJe kunt nu updates publiceren.");
       if ($("updateFormPanel")) $("updateFormPanel").hidden = false;
     } else {
@@ -144,7 +165,7 @@ async function publishUpdate() {
   if (!title || !content) return message("Vul zowel een titel als informatie in.");
 
   try {
-    await push(ref(db, "updates"), { title, content, target, at: Date.now(), author: "Admin" });
+    await db.ref("updates").push({ title, content, target, at: Date.now(), author: "Admin" });
     titleInput.value = "";
     contentInput.value = "";
     if ($("updateFormPanel")) $("updateFormPanel").hidden = true;
@@ -199,7 +220,7 @@ async function initiateCall(targetUid) {
 
   try {
     const stream = await getMicrophoneStream();
-    const callRef = push(ref(db, `games/${state.gameId}/calls`));
+    const callRef = db.ref(`games/${state.gameId}/calls`).push();
     const callId = callRef.key;
     state.activeCallId = callId;
 
@@ -212,7 +233,7 @@ async function initiateCall(targetUid) {
 
     state.peerConnection.onicecandidate = event => {
       if (event.candidate) {
-        push(ref(db, `games/${state.gameId}/calls/${callId}/callerCandidates`), event.candidate.toJSON());
+        db.ref(`games/${state.gameId}/calls/${callId}/callerCandidates`).push(event.candidate.toJSON());
       }
     };
 
@@ -222,7 +243,7 @@ async function initiateCall(targetUid) {
     const me = state.game.members?.[state.uid];
     const myTeam = state.game.teams?.[me?.teamId];
 
-    await set(callRef, {
+    await callRef.set({
       callerUid: state.uid,
       callerName: me?.name || "Speler",
       callerTeamName: myTeam?.name || "Geen team",
@@ -275,7 +296,7 @@ function listenIncomingCalls() {
 
       // Oude verlopen oproepen automatisch opgeschoond
       if (callData.status === "ringing" && ageMs > 45000) {
-        update(ref(db, `games/${state.gameId}/calls/${callId}`), { status: "ended" });
+        db.ref(`games/${state.gameId}/calls/${callId}`).update({ status: "ended" });
         return;
       }
 
@@ -308,7 +329,7 @@ function startCallTimer() {
 
 function endCall() {
   if (state.activeCallId && state.gameId) {
-    update(ref(db, `games/${state.gameId}/calls/${state.activeCallId}`), { status: "ended" });
+    db.ref(`games/${state.gameId}/calls/${state.activeCallId}`).update({ status: "ended" });
   }
   if (state.peerConnection) {
     try { state.peerConnection.close(); } catch (e) {}
@@ -630,7 +651,7 @@ async function maybePublish(force = false) {
   const me = state.game.members?.[state.uid]; if (me?.offlineUntil > now) { updateLocationSendCountdown(); return; }
   state.publishing = true; state.lastAttempt = now; updateLocationSendCountdown();
   try {
-    await update(ref(db, `games/${state.gameId}/members/${state.uid}`), { location: { ...state.pos, updatedAt: now }, lastSeen: now });
+    await db.ref(`games/${state.gameId}/members/${state.uid}`).update({ location: { ...state.pos, updatedAt: now }, lastSeen: now });
     state.lastSent = now; state.geoError = null; updateLocationNotice();
   } catch (e) { state.geoError = "network"; console.warn(e); updateLocationNotice(); }
   finally { state.publishing = false; updateLocationSendCountdown(); }
@@ -674,7 +695,7 @@ function updateCountdown() {
   updateLocationSendCountdown();
 
   if (left <= 0 && state.owner) {
-    update(ref(db, `games/${state.gameId}`), { status: "over", winner: "Boeven", endedAt: Date.now() });
+    db.ref(`games/${state.gameId}`).update({ status: "over", winner: "Boeven", endedAt: Date.now() });
   }
 }
 
@@ -694,14 +715,14 @@ function renderTeams() {
     ).join("");
   }
 
-  document.querySelectorAll("[data-assign]").forEach(el => el.onchange = () => update(ref(db, `games/${state.gameId}/members/${el.dataset.assign}`), { teamId: el.value || null }));
+  document.querySelectorAll("[data-assign]").forEach(el => el.onchange = () => db.ref(`games/${state.gameId}/members/${el.dataset.assign}`).update({ teamId: el.value || null }));
   document.querySelectorAll("[data-remove]").forEach(el => el.onclick = async () => {
     if (el.dataset.remove === state.uid) { message("Je kunt jezelf niet als host verwijderen."); return; }
-    await set(ref(db, `games/${state.gameId}/members/${el.dataset.remove}`), null);
+    await db.ref(`games/${state.gameId}/members/${el.dataset.remove}`).remove();
   });
   document.querySelectorAll("[data-rename-team]").forEach(el => el.onclick = async () => {
     const t = teams[el.dataset.renameTeam], name = prompt("Nieuwe teamnaam:", t.name);
-    if (name?.trim()) await update(ref(db, `games/${state.gameId}/teams/${el.dataset.renameTeam}`), { name: name.trim().slice(0, 30) });
+    if (name?.trim()) await db.ref(`games/${state.gameId}/teams/${el.dataset.renameTeam}`).update({ name: name.trim().slice(0, 30) });
   });
 
   renderCallTargets();
@@ -746,7 +767,7 @@ async function refreshSavedGames() {
     const items = readGameHistory();
     await Promise.all(items.map(async item => {
       try {
-        const snap = await get(ref(db, `games/${item.id}`));
+        const snap = await db.ref(`games/${item.id}`).get();
         if (snap.exists()) {
           const game = snap.val();
           item.name = game.name || item.name; item.code = game.code || item.code;
@@ -760,7 +781,7 @@ async function refreshSavedGames() {
 
 async function openSavedGame(id) {
   try {
-    const snap = await get(ref(db, `games/${id}`));
+    const snap = await db.ref(`games/${id}`).get();
     if (!snap.exists()) return message("Dit potje bestaat niet meer of is niet bereikbaar.");
     const game = snap.val(), member = game.members?.[state.uid];
     if (!member) return message("Je bent geen deelnemer meer van dit potje.");
@@ -868,8 +889,8 @@ document.addEventListener("click", async e => {
       members: { [state.uid]: { name: "Host", teamId: null, location: { ...state.pos, updatedAt: now }, lastSeen: now, offlineUses: 0 } }
     };
     try {
-      await set(ref(db, `games/${id}`), game);
-      await set(ref(db, `codes/${id}`), id);
+      await db.ref(`games/${id}`).set(game);
+      await db.ref(`codes/${id}`).set(id);
       rememberGame(id, game, true);
       await enterGame(id, game.members[state.uid], true);
     } catch (err) { message("Potje maken mislukt: " + err.message); }
@@ -883,12 +904,12 @@ document.addEventListener("click", async e => {
     const name = $("joinName") ? $("joinName").value.trim() : "";
     if (!c || !name) return message("Vul zowel de code als je naam in.");
     try {
-      const snap = await get(ref(db, `games/${c}`));
+      const snap = await db.ref(`games/${c}`).get();
       if (!snap.exists()) return message("Deze code bestaat niet (meer).");
       const g = snap.val();
       if (g.status === "over") return message("Dit potje is afgelopen.");
       const now = Date.now(), member = { name: name.slice(0, 24), teamId: null, location: { ...state.pos, updatedAt: now }, lastSeen: now, offlineUses: 0 };
-      await set(ref(db, `games/${c}/members/${state.uid}`), member);
+      await db.ref(`games/${c}/members/${state.uid}`).set(member);
       rememberGame(c, g, g.owner === state.uid);
       await enterGame(c, member, g.owner === state.uid);
     } catch (err) { message("Joinen mislukt: " + err.message); }
@@ -911,7 +932,7 @@ document.addEventListener("click", async e => {
       offlineUses: Math.max(0, Math.min(20, Number($("offlineUses")?.value) || 0)),
       offlineDuration: Math.max(5, Math.min(600, Number($("offlineDuration")?.value) || 60))
     };
-    await update(ref(db, `games/${state.gameId}/settings`), settings);
+    await db.ref(`games/${state.gameId}/settings`).update(settings);
     message("Instellingen opgeslagen.");
   }
 
@@ -921,8 +942,8 @@ document.addEventListener("click", async e => {
     if (!state.owner) return;
     const name = $("newTeamName") ? $("newTeamName").value.trim() : "";
     if (!name) return message("Vul een teamnaam in.");
-    const id = push(ref(db, `games/${state.gameId}/teams`)).key;
-    await set(ref(db, `games/${state.gameId}/teams/${id}`), { name: name.slice(0, 30), role: $("newTeamRole").value });
+    const newRef = db.ref(`games/${state.gameId}/teams`).push();
+    await newRef.set({ name: name.slice(0, 30), role: $("newTeamRole").value });
     if ($("newTeamName")) $("newTeamName").value = "";
   }
 
@@ -930,12 +951,13 @@ document.addEventListener("click", async e => {
   if (target.id === "startGame" || target.closest("#startGame")) {
     e.preventDefault();
     if (!state.owner) return;
-    const g = (await get(ref(db, `games/${state.gameId}`))).val();
+    const snap = await db.ref(`games/${state.gameId}`).get();
+    const g = snap.val();
     const teams = Object.values(g.teams || {}), members = Object.values(g.members || {});
     if (!teams.some(t => t.role === "police") || !teams.some(t => t.role === "robber")) return message("Maak minimaal één Politie-team en één Boeven-team.");
     if (members.some(m => !m.teamId)) return message("Wijs iedere speler toe aan een team voordat je start.");
     if (!confirm("Het spel starten? De timer begint direct.")) return;
-    await update(ref(db, `games/${state.gameId}`), { status: "running", startedAt: Date.now(), endsAt: Date.now() + (g.settings?.duration || 60) * 60000 });
+    await db.ref(`games/${state.gameId}`).update({ status: "running", startedAt: Date.now(), endsAt: Date.now() + (g.settings?.duration || 60) * 60000 });
     await maybePublish(true);
   }
 
@@ -944,7 +966,7 @@ document.addEventListener("click", async e => {
     e.preventDefault();
     if (!state.owner || state.game?.status !== "running") return;
     const remaining = Math.max(0, (state.game.endsAt || Date.now()) - Date.now());
-    await update(ref(db, `games/${state.gameId}`), { status: "paused", pausedRemaining: remaining, pausedAt: Date.now() });
+    await db.ref(`games/${state.gameId}`).update({ status: "paused", pausedRemaining: remaining, pausedAt: Date.now() });
     message("Het spel is gepauzeerd. De timer en GPS-updates zijn stilgezet.");
   }
 
@@ -953,7 +975,7 @@ document.addEventListener("click", async e => {
     e.preventDefault();
     if (!state.owner || state.game?.status !== "paused") return;
     const remaining = state.game.pausedRemaining || ((state.game.settings?.duration || 60) * 60000);
-    await update(ref(db, `games/${state.gameId}`), { status: "running", endsAt: Date.now() + remaining, pausedRemaining: null, pausedAt: null });
+    await db.ref(`games/${state.gameId}`).update({ status: "running", endsAt: Date.now() + remaining, pausedRemaining: null, pausedAt: null });
     await maybePublish(true);
     message("Het spel is hervat!");
   }
@@ -991,7 +1013,7 @@ document.addEventListener("click", async e => {
     state.activeCallId = callId;
 
     try {
-      const snap = await get(ref(db, `games/${state.gameId}/calls/${callId}`));
+      const snap = await db.ref(`games/${state.gameId}/calls/${callId}`).get();
       if (!snap.exists()) return message("Oproep is al verlopen.");
       const callData = snap.val();
 
@@ -1004,14 +1026,14 @@ document.addEventListener("click", async e => {
       };
 
       state.peerConnection.onicecandidate = evt => {
-        if (evt.candidate) push(ref(db, `games/${state.gameId}/calls/${callId}/targetCandidates`), evt.candidate.toJSON());
+        if (evt.candidate) db.ref(`games/${state.gameId}/calls/${callId}/targetCandidates`).push(evt.candidate.toJSON());
       };
 
       await state.peerConnection.setRemoteDescription(new RTCSessionDescription(callData.offer));
       const answer = await state.peerConnection.createAnswer();
       await state.peerConnection.setLocalDescription(answer);
 
-      await update(ref(db, `games/${state.gameId}/calls/${callId}`), {
+      await db.ref(`games/${state.gameId}/calls/${callId}`).update({
         answer: { type: answer.type, sdp: answer.sdp },
         status: "connected"
       });
@@ -1039,7 +1061,7 @@ document.addEventListener("click", async e => {
   if (target.id === "rejectCallBtn" || target.closest("#rejectCallBtn")) {
     e.preventDefault();
     if (state.incomingCallId && state.gameId) {
-      await update(ref(db, `games/${state.gameId}/calls/${state.incomingCallId}`), { status: "rejected" });
+      await db.ref(`games/${state.gameId}/calls/${state.incomingCallId}`).update({ status: "rejected" });
       state.incomingCallId = null;
     }
     if ($("incomingCallOverlay")) $("incomingCallOverlay").hidden = true;
@@ -1067,7 +1089,7 @@ if ($("chatForm")) {
     e.preventDefault();
     const text = $("chatText").value.trim();
     if (!text || !state.gameId) return;
-    await push(ref(db, `games/${state.gameId}/chat`), { uid: state.uid, name: state.game?.members?.[state.uid]?.name || "Speler", text: text.slice(0, 300), at: Date.now() });
+    await db.ref(`games/${state.gameId}/chat`).push({ uid: state.uid, name: state.game?.members?.[state.uid]?.name || "Speler", text: text.slice(0, 300), at: Date.now() });
     $("chatText").value = "";
   };
 }
@@ -1079,7 +1101,7 @@ if ($("offlineButton")) {
     if (!m) return;
     if ((m.offlineUses || 0) >= (settings.offlineUses || 0)) return message("Je hebt geen offline-momenten meer.");
     const until = Date.now() + (settings.offlineDuration || 60) * 1000;
-    await update(ref(db, `games/${state.gameId}/members/${state.uid}`), { offlineUntil: until, offlineUses: (m.offlineUses || 0) + 1 });
+    await db.ref(`games/${state.gameId}/members/${state.uid}`).update({ offlineUntil: until, offlineUses: (m.offlineUses || 0) + 1 });
     message(`Je locatie wordt ${settings.offlineDuration || 60} seconden niet bijgewerkt.`);
   };
 }
@@ -1090,7 +1112,7 @@ if ($("taggedButton")) {
     if (!state.game || (state.game.status !== "running" && state.game.status !== "paused")) return;
     const me = state.game.members?.[state.uid], team = state.game.teams?.[me?.teamId];
     if (team?.role !== "police") return message("Alleen Politie kan aangeven dat de Boeven getikt zijn.");
-    if (confirm("Bevestig: de Boeven zijn getikt en Politie wint?")) await update(ref(db, `games/${state.gameId}`), { status: "over", winner: "Politie", endedAt: Date.now() });
+    if (confirm("Bevestig: de Boeven zijn getikt en Politie wint?")) await db.ref(`games/${state.gameId}`).update({ status: "over", winner: "Politie", endedAt: Date.now() });
   };
 }
 
@@ -1098,7 +1120,7 @@ if ($("taggedButton")) {
 if ($("robbersWinButton")) {
   $("robbersWinButton").onclick = async () => {
     if (!state.owner) return message("Alleen de host kan dit aangeven.");
-    if (confirm("Boeven als winnaar instellen?")) await update(ref(db, `games/${state.gameId}`), { status: "over", winner: "Boeven", endedAt: Date.now() });
+    if (confirm("Boeven als winnaar instellen?")) await db.ref(`games/${state.gameId}`).update({ status: "over", winner: "Boeven", endedAt: Date.now() });
   };
 }
 
